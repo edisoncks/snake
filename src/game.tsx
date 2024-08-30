@@ -233,7 +233,7 @@ const Game = ({ column, row, speed }: GameProps) => {
   useInput((input, key) => {
     if (input === "q") exitApp();
     if (input === "r") resetGame();
-    if (key.rightArrow)
+    if (key.rightArrow || input === "d")
       startTransition(() => {
         setState((prevState) => ({
           ...prevState,
@@ -241,7 +241,7 @@ const Game = ({ column, row, speed }: GameProps) => {
             prevState.direction != "left" ? "right" : prevState.nextDirection,
         }));
       });
-    if (key.leftArrow)
+    if (key.leftArrow || input === "a")
       startTransition(() => {
         setState((prevState) => ({
           ...prevState,
@@ -249,7 +249,7 @@ const Game = ({ column, row, speed }: GameProps) => {
             prevState.direction != "right" ? "left" : prevState.nextDirection,
         }));
       });
-    if (key.upArrow)
+    if (key.upArrow || input === "w")
       startTransition(() => {
         setState((prevState) => ({
           ...prevState,
@@ -257,7 +257,7 @@ const Game = ({ column, row, speed }: GameProps) => {
             prevState.direction != "down" ? "up" : prevState.nextDirection,
         }));
       });
-    if (key.downArrow)
+    if (key.downArrow || input === "s")
       startTransition(() => {
         setState((prevState) => ({
           ...prevState,
@@ -298,7 +298,7 @@ const Game = ({ column, row, speed }: GameProps) => {
       <Box>
         <Text
           color={"blueBright"}
-        >{`[←↑↓→] Move   [R] Restart   [Q] Quit`}</Text>
+        >{`[←↑↓→]/[WASD] Move   [R] Restart   [Q] Quit`}</Text>
       </Box>
       <Box>
         <Text>{`Speed: `}</Text>
