@@ -1,0 +1,4 @@
+.zed/
+src/
+.editorconfig
+tsconfig.json

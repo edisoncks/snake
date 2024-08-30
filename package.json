@@ -1,0 +1,46 @@
+{
+  "name": "@edisoncks/snake",
+  "version": "1.0.1",
+  "description": "Terminal snake game for Node.js",
+  "keywords": [
+    "snake",
+    "game",
+    "terminal",
+    "cli"
+  ],
+  "author": "Edison Chong <edison.chong.cks@gmail.com>",
+  "homepage": "https://github.com/edisoncks/snake",
+  "bugs": {
+    "url": "https://github.com/edisoncks/snake/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/edisoncks/snake.git"
+  },
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "snake": "./dist/snake.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "tsx src/snake.ts",
+    "prettier": "prettier -w .",
+    "build": "pkgroll --target=node18"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.1",
+    "@types/react": "^18.3.4",
+    "pkgroll": "^2.4.2",
+    "prettier": "^3.3.3",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "ink": "^5.0.1",
+    "react": "^18.3.1"
+  }
+}
