@@ -1,4 +1,5 @@
 .zed/
+assets/
 src/
 .editorconfig
 tsconfig.json
