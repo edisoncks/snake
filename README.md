@@ -7,14 +7,14 @@ Built with Typescript, [Ink](https://github.com/vadimdemedes/ink) and [React](ht
 
 ## Features
 
-- Navigate with arrow keys and WASD.
-- 3 levels of speed.
-- Customizable game width and height.
+-   Navigate with arrow keys and WASD.
+-   3 levels of speed.
+-   Customizable game width and height.
 
 ## Requirements
 
-- Node 18 or above.
-- NPM / PNPM / Yarn
+-   Node 18 or above.
+-   NPM / PNPM / Yarn
 
 ## Getting Started
 

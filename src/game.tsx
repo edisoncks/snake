@@ -1,19 +1,22 @@
-import React, { useEffect, useState, useTransition } from "react";
+import React, { useEffect, useState } from "react";
 import { Box, Text, render, useApp, useInput } from "ink";
-import { setInterval, setTimeout } from "node:timers";
+import { clearInterval, setInterval } from "node:timers";
+import { getConfig, Speed, toggleSpeed } from "./config.js";
 import { SPRITES } from "./constants.js";
-import { getDefaultMap, getDefaultSnakePositions } from "./default.js";
-import { getNewApplePosition } from "./utils.js";
-
-type Direction = "left" | "right" | "up" | "down";
-
-type Speed = "fast" | "medium" | "slow";
-
-type GameProps = {
-  column: number;
-  row: number;
-  speed: Speed;
-};
+import {
+  getSnakeNextPosition,
+  getState,
+  moveSnakeToPosition,
+  Position,
+  resetApplePosition,
+  resetState,
+  setCurrentDirection,
+  setGameEnded,
+  setGameHasRunOnce,
+  setNextDirection,
+  setScore,
+  setTicker,
+} from "./state.js";
 
 const CELL_WIDTH = 2;
 const CELL_HEIGHT = 1;
@@ -23,254 +26,177 @@ const TIMER_SPEED: Record<Speed, number> = {
   slow: 200,
 };
 
-const Game = ({ column, row, speed }: GameProps) => {
+const getDefaultMap = (
+  columns: number,
+  rows: number,
+  applePosition: Position,
+  snakePositions: Position[],
+): string[][] => {
+  const map: string[][] = [];
+  for (let x = 0; x < columns; x++) {
+    const mapCol: string[] = [];
+    for (let y = 0; y < rows; y++) {
+      mapCol.push(
+        x == 0 || y == 0 || x + 1 == columns || y + 1 == rows
+          ? SPRITES.wall
+          : SPRITES.void,
+      );
+    }
+    map.push(mapCol);
+  }
+  map[applePosition.x][applePosition.y] = SPRITES.apple;
+  for (const pos of snakePositions) {
+    map[pos.x][pos.y] = SPRITES.snake;
+  }
+  return map;
+};
+
+const Game = (): React.JSX.Element => {
   const { exit } = useApp();
 
-  const [state, setState] = useState({
-    map: getDefaultMap(column, row),
+  const [gameState, setGameState] = useState({
+    gameEnded: true,
+    gameHasRunOnce: false,
+    map: [] as string[][],
     score: 0,
-    snakePositions: getDefaultSnakePositions(column, row),
-    applePos: getNewApplePosition(
-      column,
-      row,
-      getDefaultSnakePositions(column, row),
-    ),
-    clearPositionsQueue: [] as number[][],
-    direction: "right" as Direction,
-    nextDirection: "right" as Direction,
-    gameCountdown: 3,
-    gameEnded: false,
-    positionTicker: undefined as NodeJS.Timeout | undefined,
-    renderTicker: undefined as NodeJS.Timeout | undefined,
+    speed: getConfig().speed,
   });
 
-  const [isPending, startTransition] = useTransition();
-
-  const drawMap = () => {
-    setState((prevState) => {
-      for (const pos of prevState.clearPositionsQueue) {
-        prevState.map[pos[0]][pos[1]] = SPRITES.void;
+  const tick = () => {
+    const { width, height } = getConfig();
+    const {
+      applePosition,
+      gameEnded,
+      nextDirection,
+      score,
+      snakePositions,
+      ticker,
+    } = getState();
+    if (gameEnded) {
+      stopTicker();
+      return;
+    }
+    const snakeNextPosition = getSnakeNextPosition(nextDirection);
+    const snakeTailPosition = snakePositions.slice(-1)[0];
+    const hasHitWall =
+      snakeNextPosition.x === 0 ||
+      snakeNextPosition.y === 0 ||
+      snakeNextPosition.x + 1 === width ||
+      snakeNextPosition.y + 1 === height;
+    const hasHitSnake =
+      snakePositions.find(
+        (pos) => pos.x === snakeNextPosition.x && pos.y === snakeNextPosition.y,
+      ) !== undefined;
+    const hasEatenApple =
+      snakeNextPosition.x === applePosition.x &&
+      snakeNextPosition.y === applePosition.y;
+    const newSnakePositions =
+      hasHitWall || hasHitSnake
+        ? snakePositions
+        : moveSnakeToPosition(snakeNextPosition, hasEatenApple);
+    const newApplePosition = hasEatenApple
+      ? resetApplePosition(width, height)
+      : applePosition;
+    setGameEnded(hasHitWall || hasHitSnake);
+    setScore(hasEatenApple ? score + 100 : score);
+    setCurrentDirection(nextDirection);
+    setGameState((prevGameState) => {
+      const gameState = { ...prevGameState };
+      const { gameEnded, score } = getState();
+      gameState.map[snakeTailPosition.x][snakeTailPosition.y] = SPRITES.void;
+      gameState.map[newApplePosition.x][newApplePosition.y] = SPRITES.apple;
+      for (const pos of newSnakePositions) {
+        gameState.map[pos.x][pos.y] = SPRITES.snake;
       }
-      prevState.clearPositionsQueue = [];
-      const { applePos } = prevState;
-      prevState.map[applePos[0]][applePos[1]] = SPRITES.apple;
-      const headPos = prevState.snakePositions[0];
-      prevState.map[headPos[0]][headPos[1]] = SPRITES.snake;
-      if (prevState.snakePositions.length === 3) {
-        const bodyPos1 = prevState.snakePositions[1];
-        prevState.map[bodyPos1[0]][bodyPos1[1]] = SPRITES.snake;
-        const bodyPos2 = prevState.snakePositions[2];
-        prevState.map[bodyPos2[0]][bodyPos2[1]] = SPRITES.snake;
-      }
-      return prevState;
+      gameState.score = score;
+      gameState.gameEnded = gameEnded;
+      return gameState;
     });
   };
 
-  const updateSnakeAndApplePositions = () => {
-    startTransition(() => {
-      setState((prevState) => {
-        if (prevState.gameEnded || prevState.gameCountdown > 0)
-          return prevState;
-        const headPos = prevState.snakePositions[0];
-        const tailPos = prevState.snakePositions.slice(-1)[0];
-        const nextPos = [...headPos];
-        switch (prevState.nextDirection) {
-          case "right":
-            nextPos[0] += 1;
-            break;
-          case "left":
-            nextPos[0] -= 1;
-            break;
-          case "up":
-            nextPos[1] -= 1;
-            break;
-          case "down":
-            nextPos[1] += 1;
-            break;
-        }
-        const hasHitWall =
-          nextPos[0] == 0 ||
-          nextPos[1] == 0 ||
-          nextPos[0] + 1 == column ||
-          nextPos[1] + 1 == row;
-        const hasHitSnake =
-          prevState.snakePositions.find(
-            (pos) => pos[0] == nextPos[0] && pos[1] == nextPos[1],
-          ) !== undefined;
-        const hasEatenApple =
-          prevState.snakePositions.find(
-            (pos) =>
-              pos[0] == prevState.applePos[0] &&
-              pos[1] == prevState.applePos[1],
-          ) !== undefined;
-        const newSnakePositions = [
-          nextPos,
-          ...prevState.snakePositions.slice(0, hasEatenApple ? undefined : -1),
-        ];
-        const newApplePosition = hasEatenApple
-          ? getNewApplePosition(column, row, newSnakePositions)
-          : prevState.applePos;
-        return {
-          ...prevState,
-          direction: prevState.nextDirection,
-          snakePositions:
-            hasHitWall || hasHitSnake
-              ? prevState.snakePositions
-              : newSnakePositions,
-          applePos: newApplePosition,
-          clearPositionsQueue:
-            hasHitWall || hasHitSnake || hasEatenApple
-              ? prevState.clearPositionsQueue
-              : [...prevState.clearPositionsQueue, tailPos],
-          score:
-            !hasHitWall && !hasHitSnake && hasEatenApple
-              ? prevState.score + 100
-              : prevState.score,
-          gameEnded: hasHitWall || hasHitSnake,
-        };
-      });
+  const changeSpeed = () => {
+    const speed = toggleSpeed();
+    setScore(0);
+    setGameState((prevGameState) => {
+      const gameState = { ...prevGameState, score: 0, speed };
+      return gameState;
     });
   };
 
-  const startPositionTicker = () => {
-    startTransition(() => {
-      setState((prevState) => {
-        return {
-          ...prevState,
-          positionTicker: setInterval(() => {
-            updateSnakeAndApplePositions();
-          }, TIMER_SPEED[speed]),
-        };
-      });
+  const resetGameState = () => {
+    const { width, height } = getConfig();
+    resetState(width, height);
+    setGameState((prevGameState) => {
+      const gameState = { ...prevGameState };
+      const { applePosition, snakePositions } = getState();
+      gameState.map = getDefaultMap(
+        width,
+        height,
+        applePosition,
+        snakePositions,
+      );
+      gameState.score = 0;
+      gameState.gameEnded = false;
+      return gameState;
     });
   };
 
-  const stopPositionTicker = () => {
-    setState((prevState) => {
-      if (prevState.positionTicker) clearInterval(prevState.positionTicker);
-      return {
-        ...prevState,
-        positionTicker: undefined,
-      };
+  const startTicker = () => {
+    const { speed } = getConfig();
+    setTicker(
+      setInterval(() => {
+        tick();
+      }, TIMER_SPEED[speed]),
+    );
+    setGameHasRunOnce(true);
+    setGameState((prevGameState) => {
+      const gameState = { ...prevGameState, gameHasRunOnce: true };
+      return gameState;
     });
   };
 
-  const startRenderTicker = () => {
-    startTransition(() => {
-      setState((prevState) => {
-        return {
-          ...prevState,
-          renderTicker: setInterval(() => {
-            drawMap();
-          }, 50),
-        };
-      });
-    });
+  const stopTicker = () => {
+    const { ticker } = getState();
+    if (ticker) clearInterval(ticker);
   };
 
-  const stopRenderTicker = () => {
-    setState((prevState) => {
-      if (prevState.renderTicker) clearInterval(prevState.renderTicker);
-      return {
-        ...prevState,
-        renderTicker: undefined,
-      };
-    });
+  const stopGame = () => {
+    setGameEnded(true);
+    stopTicker();
   };
 
-  const startCountdown = () => {
-    setTimeout(() => {
-      setState((prevState) => {
-        if (prevState.gameCountdown > 1) startCountdown();
-        return {
-          ...prevState,
-          gameCountdown: prevState.gameCountdown - 1,
-        };
-      });
-    }, 1000);
+  const restartGame = () => {
+    stopTicker();
+    resetGameState();
+    startTicker();
   };
 
-  const resetGame = () => {
-    setState((prevState) => {
-      return {
-        ...prevState,
-        map: getDefaultMap(column, row),
-        score: 0,
-        snakePositions: getDefaultSnakePositions(column, row),
-        applePos: getNewApplePosition(
-          column,
-          row,
-          getDefaultSnakePositions(column, row),
-        ),
-        clearPositionsQueue: [] as number[][],
-        direction: "right" as Direction,
-        nextDirection: "right" as Direction,
-        gameCountdown: 3,
-        gameEnded: false,
-      };
-    });
-    startCountdown();
-  };
+  useEffect(() => {
+    resetGameState();
+  }, []);
 
-  const exitApp = () => {
-    stopPositionTicker();
-    stopRenderTicker();
+  const exitGame = () => {
+    stopGame();
     exit();
     process.exit();
   };
 
-  useEffect(() => {
-    drawMap();
-    startCountdown();
-    startPositionTicker();
-    startRenderTicker();
-    return () => {
-      stopPositionTicker();
-      stopRenderTicker();
-    };
-  }, []);
-
   useInput((input, key) => {
-    if (input === "q") exitApp();
-    if (input === "r") resetGame();
-    if (key.rightArrow || input === "d")
-      startTransition(() => {
-        setState((prevState) => ({
-          ...prevState,
-          nextDirection:
-            prevState.direction != "left" ? "right" : prevState.nextDirection,
-        }));
-      });
-    if (key.leftArrow || input === "a")
-      startTransition(() => {
-        setState((prevState) => ({
-          ...prevState,
-          nextDirection:
-            prevState.direction != "right" ? "left" : prevState.nextDirection,
-        }));
-      });
-    if (key.upArrow || input === "w")
-      startTransition(() => {
-        setState((prevState) => ({
-          ...prevState,
-          nextDirection:
-            prevState.direction != "down" ? "up" : prevState.nextDirection,
-        }));
-      });
-    if (key.downArrow || input === "s")
-      startTransition(() => {
-        setState((prevState) => ({
-          ...prevState,
-          nextDirection:
-            prevState.direction != "up" ? "down" : prevState.nextDirection,
-        }));
-      });
+    const { gameEnded, gameHasRunOnce } = getState();
+    if (input === "d" || key.rightArrow) setNextDirection("right");
+    if (input === "a" || key.leftArrow) setNextDirection("left");
+    if (input === "s" || key.downArrow) setNextDirection("down");
+    if (input === "w" || key.upArrow) setNextDirection("up");
+    if (input === "e" && (gameEnded || !gameHasRunOnce)) changeSpeed();
+    if (key.return && !gameHasRunOnce) startTicker();
+    if (input === "r" && gameHasRunOnce) restartGame();
+    if (input === "q") exitGame();
   });
 
   return (
     <Box flexDirection="column" alignItems="center" justifyContent="center">
-      <Box width={column * CELL_WIDTH} marginTop={1}>
-        {state.map.map((mapCol, x) => (
+      <Box width={getConfig().width * CELL_WIDTH} marginTop={1}>
+        {gameState.map.map((mapCol, x) => (
           <Box key={`col_${x}`} width={CELL_WIDTH} flexDirection="column">
             {mapCol.map((cell, y) => (
               <Box key={`row_${y}`} height={CELL_HEIGHT}>
@@ -290,29 +216,34 @@ const Game = ({ column, row, speed }: GameProps) => {
           </Box>
         ))}
       </Box>
-      <Box display={state.gameCountdown > 0 ? "flex" : "none"}>
-        <Text color={"yellowBright"}>
-          The game is starting in {state.gameCountdown} second(s)...
-        </Text>
-      </Box>
       <Box>
-        <Text
-          color={"blueBright"}
-        >{`[←↑↓→]/[WASD] Move   [R] Restart   [Q] Quit`}</Text>
+        {!gameState.gameEnded && gameState.gameHasRunOnce && (
+          <Text color={"blueBright"}>{`[←↑↓→]/[WASD] Move   `}</Text>
+        )}
+        {(gameState.gameEnded || !gameState.gameHasRunOnce) && (
+          <Text color={"blueBright"}>{`[E] Change Speed   `}</Text>
+        )}
+        {!gameState.gameHasRunOnce && (
+          <Text color={"blueBright"}>{`[↵] Start   `}</Text>
+        )}
+        {gameState.gameHasRunOnce && (
+          <Text color={"blueBright"}>{`[R] Restart   `}</Text>
+        )}
+        <Text color={"blueBright"}>{`[Q] Quit`}</Text>
       </Box>
       <Box>
         <Text>{`Speed: `}</Text>
-        <Text color={"greenBright"}>{`${speed}   `}</Text>
+        <Text color={"greenBright"}>{`${gameState.speed}   `}</Text>
         <Text>{`Score: `}</Text>
-        <Text color={"greenBright"}>{`${state.score}`}</Text>
+        <Text color={"greenBright"}>{`${gameState.score}`}</Text>
       </Box>
-      <Box display={state.gameEnded ? "flex" : "none"}>
+      <Box display={gameState.gameEnded ? "flex" : "none"}>
         <Text color={"redBright"}>Game over!</Text>
       </Box>
     </Box>
   );
 };
 
-export const renderGame = (width: number, height: number, speed: Speed) => {
-  render(<Game column={width} row={height} speed={speed} />);
+export const renderGame = () => {
+  render(<Game />);
 };
