@@ -1,6 +1,20 @@
 import { getRandomInt } from "./random.js";
 
 export type Direction = "left" | "right" | "up" | "down";
+export type Hooks = {
+  onAppleRespawn: (applePosition: Position) => void;
+  onGamePrepared: (applePosition: Position, snakePositions: Position[]) => void;
+  onGameStart: () => void;
+  onGameStop: () => void;
+  onScoreUpdate: (score: number) => void;
+  onSnakeMove: (
+    oldSnakePositions: Position[],
+    newSnakePositions: Position[],
+  ) => void;
+  onSnakeHitSelf: () => void;
+  onSnakeHitWall: () => void;
+  onSnakeRespawn: (snakePositions: Position[]) => void;
+};
 export type Optional<K> = K | undefined;
 export type Position = { x: number; y: number };
 export type Speed = "fast" | "medium" | "slow";
@@ -18,17 +32,16 @@ const flags = {
   hasHitWall: false,
 };
 
-const hooks = {
-  onAppleRespawn: (applePosition: Position) => {},
-  onGameStart: (applePosition: Position, snakePositions: Position[]) => {},
+const hooks: Hooks = {
+  onAppleRespawn: () => {},
+  onGamePrepared: () => {},
+  onGameStart: () => {},
   onGameStop: () => {},
-  onScoreUpdate: (score: number) => {},
-  onSnakeMove: (
-    oldSnakePositions: Position[],
-    newSnakePositions: Position[],
-  ) => {},
+  onScoreUpdate: () => {},
+  onSnakeMove: () => {},
   onSnakeHitSelf: () => {},
   onSnakeHitWall: () => {},
+  onSnakeRespawn: () => {},
 };
 
 const state = {
@@ -113,20 +126,26 @@ const respawnApple = () => {
   hooks.onAppleRespawn({ ...applePosition });
 };
 
+const respawnSnake = () => {
+  const snakePositions = getDefaultSnakePositions();
+  state.positions.snake = [...snakePositions];
+  hooks.onSnakeRespawn([...snakePositions]);
+};
+
 export const getWidth = () => config.width;
 
 export const setWidth = (width: number) => {
   config.width = width;
-  state.positions.snake = getDefaultSnakePositions();
-  state.positions.apple = getNewApplePosition();
+  respawnSnake();
+  respawnApple();
 };
 
 export const getHeight = () => config.height;
 
 export const setHeight = (height: number) => {
   config.height = height;
-  state.positions.snake = getDefaultSnakePositions();
-  state.positions.apple = getNewApplePosition();
+  respawnSnake();
+  respawnApple();
 };
 
 export const getSpeed = () => config.speed;
@@ -134,8 +153,6 @@ export const getSpeed = () => config.speed;
 export const setSpeed = (speed: Speed) => {
   config.speed = speed;
 };
-
-export const getIsGameRunningFlag = () => flags.isGameRunning;
 
 export const getApplePosition = () => state.positions.apple;
 
@@ -159,9 +176,13 @@ export const setOnAppleRespawnHandler = (
   hooks.onAppleRespawn = handler;
 };
 
-export const setOnGameStartHandler = (
+export const setOnGamePreparedHandler = (
   handler: (applePosition: Position, snakePositions: Position[]) => void,
 ) => {
+  hooks.onGamePrepared = handler;
+};
+
+export const setOnGameStartHandler = (handler: () => void) => {
   hooks.onGameStart = handler;
 };
 
@@ -190,19 +211,27 @@ export const setOnSnakeHitWallHandler = (handler: () => void) => {
   hooks.onSnakeHitWall = handler;
 };
 
-export const startGame = () => {
+export const setOnSnakeRespawnHandler = (
+  handler: (snakePositions: Position[]) => void,
+) => {
+  hooks.onSnakeRespawn = handler;
+};
+
+export const prepareGame = () => {
   updateHasHitWallFlag(false);
   updateHasHitSelfFlag(false);
   updateScore(0);
-  state.positions.snake = getDefaultSnakePositions();
-  if (flags.hasStartedOnce) {
-    state.positions.apple = getNewApplePosition();
-  }
+  respawnSnake();
+  respawnApple();
   state.direction.current = "right";
   state.direction.next = "right";
+  hooks.onGamePrepared(state.positions.apple, state.positions.snake);
+};
+
+export const startGame = () => {
   flags.hasStartedOnce = true;
   flags.isGameRunning = true;
-  hooks.onGameStart(state.positions.apple, state.positions.snake);
+  hooks.onGameStart();
 };
 
 export const stopGame = () => {
@@ -233,6 +262,3 @@ export const tick = () => {
   state.direction.current = state.direction.next;
   if (hasHitWall || hasHitSelf) stopGame();
 };
-
-state.positions.snake = getDefaultSnakePositions();
-state.positions.apple = getNewApplePosition();

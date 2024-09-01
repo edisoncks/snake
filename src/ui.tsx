@@ -3,20 +3,20 @@ import { Box, Text, render, useApp, useInput } from "ink";
 import { CELL_HEIGHT, CELL_WIDTH, SPRITES, TIMER_SPEED } from "./constants.js";
 import {
   changeDirection,
-  getApplePosition,
   getHeight,
-  getIsGameRunningFlag,
-  getSnakePositions,
   getSpeed,
   getWidth,
   Position,
+  prepareGame,
   setOnAppleRespawnHandler,
+  setOnGamePreparedHandler,
   setOnGameStartHandler,
   setOnGameStopHandler,
   setOnScoreUpdateHandler,
   setOnSnakeHitSelfHandler,
   setOnSnakeHitWallHandler,
   setOnSnakeMoveHandler,
+  setOnSnakeRespawnHandler,
   setSpeed,
   Speed,
   startGame,
@@ -25,7 +25,7 @@ import {
 } from "./core.js";
 import { setInterval } from "timers";
 
-const getDefaultMap = (
+const renderMap = (
   columns: number,
   rows: number,
   applePosition: Position,
@@ -46,6 +46,22 @@ const getDefaultMap = (
   map[applePosition.x][applePosition.y] = SPRITES.apple;
   for (const pos of snakePositions) {
     map[pos.x][pos.y] = SPRITES.snake;
+  }
+  return map;
+};
+
+const resetMap = (columns: number, rows: number) => {
+  const map: string[][] = [];
+  for (let x = 0; x < columns; x++) {
+    const mapCol: string[] = [];
+    for (let y = 0; y < rows; y++) {
+      mapCol.push(
+        x == 0 || y == 0 || x + 1 == columns || y + 1 == rows
+          ? SPRITES.wall
+          : SPRITES.void,
+      );
+    }
+    map.push(mapCol);
   }
   return map;
 };
@@ -71,12 +87,19 @@ const GameUI = () => {
     });
   };
 
-  const onGameStart = (applePosition: Position, snakePositions: Position[]) => {
+  const onGamePrepared = (
+    applePosition: Position,
+    snakePositions: Position[],
+  ) => {
     setState((state) => ({
       ...state,
-      map: state.isGameOver
-        ? getDefaultMap(getWidth(), getHeight(), applePosition, snakePositions)
-        : state.map,
+      map: renderMap(getWidth(), getHeight(), applePosition, snakePositions),
+    }));
+  };
+
+  const onGameStart = () => {
+    setState((state) => ({
+      ...state,
       isGameRunning: true,
       isGameOver: false,
       ticker: setInterval(() => {
@@ -120,25 +143,29 @@ const GameUI = () => {
     setState((state) => ({ ...state, isGameOver: true }));
   };
 
+  const onSnakeRespawn = (snakePositions: Position[]) => {
+    setState((state) => {
+      const map = resetMap(getWidth(), getHeight());
+      for (const pos of snakePositions) {
+        map[pos.x][pos.y] = SPRITES.snake;
+      }
+      return { ...state, map };
+    });
+  };
+
   useEffect(() => {
-    // Render map on mount
-    setState((state) => ({
-      ...state,
-      map: getDefaultMap(
-        getWidth(),
-        getHeight(),
-        getApplePosition(),
-        getSnakePositions(),
-      ),
-    }));
     // Assign handlers to game events
     setOnAppleRespawnHandler(onAppleRespawn);
+    setOnGamePreparedHandler(onGamePrepared);
     setOnGameStartHandler(onGameStart);
     setOnGameStopHandler(onGameStop);
     setOnScoreUpdateHandler(onScoreUpdate);
     setOnSnakeMoveHandler(onSnakeMove);
     setOnSnakeHitSelfHandler(onSnakeHitSelf);
     setOnSnakeHitWallHandler(onSnakeHitWall);
+    setOnSnakeRespawnHandler(onSnakeRespawn);
+    // Prepare game
+    prepareGame();
   }, []);
 
   useInput((input, key) => {
@@ -146,7 +173,7 @@ const GameUI = () => {
     if (input === "a" || key.leftArrow) changeDirection("left");
     if (input === "s" || key.downArrow) changeDirection("down");
     if (input === "d" || key.rightArrow) changeDirection("right");
-    if (input === "e" && !getIsGameRunningFlag()) {
+    if (input === "e" && !state.isGameRunning) {
       const mapping: Record<Speed, Speed> = {
         slow: "medium",
         medium: "fast",
@@ -156,8 +183,9 @@ const GameUI = () => {
       setState((state) => ({ ...state, score: 0 }));
       forceRerender();
     }
-    if (input === "n" && !getIsGameRunningFlag()) {
+    if (input === "n" && !state.isGameRunning) {
       stopGame();
+      if (state.isGameOver) prepareGame();
       startGame();
     }
     if (input === "q") {

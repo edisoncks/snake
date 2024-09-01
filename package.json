@@ -1,6 +1,6 @@
 {
   "name": "@edisoncks/snake",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Terminal snake game for Node.js",
   "keywords": [
     "snake",
