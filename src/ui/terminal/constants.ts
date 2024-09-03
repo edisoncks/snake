@@ -1,4 +1,4 @@
-import { Speed } from "./core.js";
+import { Speed } from "../../core.js";
 
 export const CELL_WIDTH = 2;
 
