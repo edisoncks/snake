@@ -1,6 +1,6 @@
 {
   "name": "@edisoncks/snake",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Terminal snake game for Node.js",
   "keywords": [
     "snake",
@@ -20,13 +20,13 @@
   "license": "MIT",
   "type": "module",
   "bin": {
-    "snake": "./dist/snake.mjs"
+    "snake": "./dist/snake-cli.mjs"
   },
   "engines": {
     "node": ">=18"
   },
   "scripts": {
-    "start": "tsx src/snake.ts",
+    "start": "tsx src/snake-cli.ts",
     "prettier": "prettier -w .",
     "build": "pkgroll --target=node18"
   },

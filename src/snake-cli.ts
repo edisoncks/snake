@@ -1,6 +1,5 @@
 import { program } from "commander";
-import { setWidth, setHeight, setSpeed } from "./core.js";
-import { renderGameUI } from "./ui.js";
+import { renderGameUI } from "./ui/terminal/components/game-ui.js";
 
 const options = program
   .option("--width [WIDTH]", "Game size width", "20")
@@ -11,9 +10,10 @@ const options = program
   .opts();
 
 const { width, height, speed } = options;
-setWidth(parseInt(width));
-setHeight(parseInt(height));
-setSpeed(speed);
 
 console.clear();
-renderGameUI();
+renderGameUI({
+  width: parseInt(width),
+  height: parseInt(height),
+  speed,
+});
